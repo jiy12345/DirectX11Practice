@@ -21,6 +21,8 @@ struct Vertex {
 };
 ID3D11Buffer* g_pVertexBuffer = nullptr;
 ID3D11InputLayout* g_pInputLayout = nullptr;
+ID3D11VertexShader* g_pVertexShader = nullptr;
+ID3D11PixelShader* g_pPixelShader = nullptr;
 
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
@@ -112,12 +114,49 @@ bool InitD3D11(HWND hWnd) {
     hr = g_pd3dDevice->CreateBuffer(&bd, &initData, &g_pVertexBuffer);
     if (FAILED(hr)) return false;
 
-    // #2 (3) 입력 레이아웃 정의
+    // #2 (4) HLSL 셰이더 소스 코드 (간단한 패스스루)
+    const char* vsCode = R"(
+    struct VS_IN {
+        float3 pos : POSITION;
+        float4 col : COLOR;
+    };
+    struct PS_IN {
+        float4 pos : SV_POSITION;
+        float4 col : COLOR;
+    };
+    PS_IN main(VS_IN input) {
+        PS_IN output;
+        output.pos = float4(input.pos, 1.0f);
+        output.col = input.col;
+        return output;
+    })";
+    const char* psCode = R"(
+    struct PS_IN {
+        float4 pos : SV_POSITION;
+        float4 col : COLOR;
+    };
+    float4 main(PS_IN input) : SV_TARGET {
+        return input.col;
+    })";
+    ID3DBlob* vsBlob = nullptr;
+    ID3DBlob* psBlob = nullptr;
+    ID3DBlob* errorBlob = nullptr;
+    hr = D3DCompile(vsCode, strlen(vsCode), nullptr, nullptr, nullptr, "main", "vs_4_0", 0, 0, &vsBlob, &errorBlob);
+    if (FAILED(hr)) return false;
+    hr = D3DCompile(psCode, strlen(psCode), nullptr, nullptr, nullptr, "main", "ps_4_0", 0, 0, &psBlob, &errorBlob);
+    if (FAILED(hr)) { if (vsBlob) vsBlob->Release(); return false; }
+    hr = g_pd3dDevice->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &g_pVertexShader);
+    if (FAILED(hr)) { vsBlob->Release(); psBlob->Release(); return false; }
+    hr = g_pd3dDevice->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &g_pPixelShader);
+    if (FAILED(hr)) { vsBlob->Release(); psBlob->Release(); return false; }
+    // #2 (4) 입력 레이아웃 생성
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
-    // 셰이더 바이트코드 필요, 이후 단계에서 생성
+    hr = g_pd3dDevice->CreateInputLayout(layout, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_pInputLayout);
+    vsBlob->Release(); psBlob->Release();
+    if (FAILED(hr)) return false;
 
     return true;
 }
@@ -131,6 +170,8 @@ void CleanupD3D11() {
     if (g_pd3dDevice) g_pd3dDevice->Release();
     if (g_pVertexBuffer) g_pVertexBuffer->Release();
     if (g_pInputLayout) g_pInputLayout->Release();
+    if (g_pVertexShader) g_pVertexShader->Release();
+    if (g_pPixelShader) g_pPixelShader->Release();
 }
 
 void Render() {
