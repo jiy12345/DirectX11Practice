@@ -12,6 +12,7 @@ ID3D11Device*           g_pd3dDevice = nullptr;
 ID3D11DeviceContext*    g_pImmediateContext = nullptr;
 IDXGISwapChain*         g_pSwapChain = nullptr;
 ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
+ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
 
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
@@ -49,7 +50,29 @@ bool InitD3D11(HWND hWnd) {
     pBackBuffer->Release();
     if (FAILED(hr)) return false;
 
-    g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, nullptr);
+    // #2 (1) 깊이-스텐실 버퍼 생성
+    D3D11_TEXTURE2D_DESC depthDesc = {};
+    depthDesc.Width = 800;
+    depthDesc.Height = 600;
+    depthDesc.MipLevels = 1;
+    depthDesc.ArraySize = 1;
+    depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthDesc.SampleDesc.Count = 1;
+    depthDesc.SampleDesc.Quality = 0;
+    depthDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthDesc.CPUAccessFlags = 0;
+    depthDesc.MiscFlags = 0;
+
+    ID3D11Texture2D* pDepthStencil = nullptr;
+    hr = g_pd3dDevice->CreateTexture2D(&depthDesc, nullptr, &pDepthStencil);
+    if (FAILED(hr)) return false;
+
+    hr = g_pd3dDevice->CreateDepthStencilView(pDepthStencil, nullptr, &g_pDepthStencilView);
+    pDepthStencil->Release();
+    if (FAILED(hr)) return false;
+
+    g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
     D3D11_VIEWPORT vp = {};
     vp.Width = (FLOAT)800;
@@ -65,6 +88,7 @@ bool InitD3D11(HWND hWnd) {
 
 void CleanupD3D11() {
     if (g_pImmediateContext) g_pImmediateContext->ClearState();
+    if (g_pDepthStencilView) g_pDepthStencilView->Release();
     if (g_pRenderTargetView) g_pRenderTargetView->Release();
     if (g_pSwapChain) g_pSwapChain->Release();
     if (g_pImmediateContext) g_pImmediateContext->Release();
