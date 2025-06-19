@@ -191,7 +191,7 @@ void Render() {
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
     g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    // #2 (11) ImGui 선택값에 따라 스텐실 상태 동적 생성/적용
+    // ImGui 선택값에 따라 스텐실 상태 동적 생성/적용
     D3D11_DEPTH_STENCIL_DESC dsDesc = {};
     dsDesc.DepthEnable = TRUE;
     dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -206,9 +206,7 @@ void Render() {
     dsDesc.BackFace = dsDesc.FrontFace;
     ID3D11DepthStencilState* pDSState = nullptr;
     g_pd3dDevice->CreateDepthStencilState(&dsDesc, &pDSState);
-    g_pImmediateContext->OMSetDepthStencilState(pDSState, g_stencilRef);
 
-    // #2 (5) 파이프라인 셋업 및 삼각형 렌더링
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
     g_pImmediateContext->IASetInputLayout(g_pInputLayout);
@@ -216,7 +214,24 @@ void Render() {
     g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
     g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
-    g_pImmediateContext->Draw(6, 0); // 2개 삼각형(6개 정점)
+
+    // 첫 번째 삼각형: 스텐실 마스크로만 그림 (스텐실 값 1로 설정)
+    D3D11_DEPTH_STENCIL_DESC maskDesc = dsDesc;
+    maskDesc.StencilEnable = TRUE;
+    maskDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    maskDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    maskDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    maskDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    maskDesc.BackFace = maskDesc.FrontFace;
+    ID3D11DepthStencilState* pMaskState = nullptr;
+    g_pd3dDevice->CreateDepthStencilState(&maskDesc, &pMaskState);
+    g_pImmediateContext->OMSetDepthStencilState(pMaskState, 1); // 스텐실 값 1로 설정
+    g_pImmediateContext->Draw(3, 0); // 첫 번째 삼각형만
+    if (pMaskState) pMaskState->Release();
+
+    // 두 번째 삼각형: 스텐실 조건에 따라 그림
+    g_pImmediateContext->OMSetDepthStencilState(pDSState, g_stencilRef);
+    g_pImmediateContext->Draw(3, 3); // 두 번째 삼각형만
 
     if (pDSState) pDSState->Release();
 
