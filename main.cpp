@@ -37,10 +37,15 @@ static int g_stencilOp = 0;   // 기본값: D3D11_STENCIL_OP_KEEP
 static int g_stencilRef = 1;  // 기본값: 1
 
 bool InitD3D11(HWND hWnd) {
+    RECT rect;
+    GetClientRect(hWnd, &rect);
+    int width = rect.right - rect.left;
+    int height = rect.bottom - rect.top;
+
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 1;
-    sd.BufferDesc.Width = 800;
-    sd.BufferDesc.Height = 600;
+    sd.BufferDesc.Width = width;
+    sd.BufferDesc.Height = height;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     sd.BufferDesc.RefreshRate.Numerator = 60;
     sd.BufferDesc.RefreshRate.Denominator = 1;
@@ -74,8 +79,8 @@ bool InitD3D11(HWND hWnd) {
 
     // #2 (1) 깊이-스텐실 버퍼 생성
     D3D11_TEXTURE2D_DESC depthDesc = {};
-    depthDesc.Width = 800;
-    depthDesc.Height = 600;
+    depthDesc.Width = width;
+    depthDesc.Height = height;
     depthDesc.MipLevels = 1;
     depthDesc.ArraySize = 1;
     depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -97,13 +102,17 @@ bool InitD3D11(HWND hWnd) {
     g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
     D3D11_VIEWPORT vp = {};
-    vp.Width = (FLOAT)800;
-    vp.Height = (FLOAT)600;
+    vp.Width = (FLOAT)width;
+    vp.Height = (FLOAT)height;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
     g_pImmediateContext->RSSetViewports(1, &vp);
+
+    // ImGui DisplaySize 동기화
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2((float)width, (float)height);
 
     // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게)
     Vertex vertices[] = {
