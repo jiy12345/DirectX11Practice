@@ -191,6 +191,23 @@ void Render() {
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
     g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
+    // #2 (11) ImGui 선택값에 따라 스텐실 상태 동적 생성/적용
+    D3D11_DEPTH_STENCIL_DESC dsDesc = {};
+    dsDesc.DepthEnable = TRUE;
+    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    dsDesc.StencilEnable = TRUE;
+    dsDesc.StencilReadMask = 0xFF;
+    dsDesc.StencilWriteMask = 0xFF;
+    dsDesc.FrontFace.StencilFunc = (D3D11_COMPARISON_FUNC)g_stencilFunc;
+    dsDesc.FrontFace.StencilPassOp = (D3D11_STENCIL_OP)g_stencilOp;
+    dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    dsDesc.BackFace = dsDesc.FrontFace;
+    ID3D11DepthStencilState* pDSState = nullptr;
+    g_pd3dDevice->CreateDepthStencilState(&dsDesc, &pDSState);
+    g_pImmediateContext->OMSetDepthStencilState(pDSState, g_stencilRef);
+
     // #2 (5) 파이프라인 셋업 및 삼각형 렌더링
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
@@ -200,6 +217,8 @@ void Render() {
     g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
     g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
     g_pImmediateContext->Draw(6, 0); // 2개 삼각형(6개 정점)
+
+    if (pDSState) pDSState->Release();
 
     g_pSwapChain->Present(1, 0);
 }
