@@ -31,6 +31,11 @@ ID3D11PixelShader* g_pPixelShader = nullptr;
 // ImGui 윈도우 프로시저 전달용
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
+// 스텐실 상태 선택용 전역 변수
+static int g_stencilFunc = 2; // 기본값: D3D11_COMPARISON_ALWAYS
+static int g_stencilOp = 0;   // 기본값: D3D11_STENCIL_OP_KEEP
+static int g_stencilRef = 1;  // 기본값: 1
+
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 1;
@@ -226,14 +231,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
-            // #2 (9) ImGui 프레임 시작
             ImGui_ImplDX11_NewFrame();
             ImGui_ImplWin32_NewFrame();
             ImGui::NewFrame();
 
-            // #2 (9) 기본 ImGui 윈도우
             ImGui::Begin("Stencil Example");
             ImGui::Text("ImGui + DirectX11 + Stencil Example");
+            // #2 (10) 스텐실 비교 함수 선택
+            const char* funcs[] = { "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS" };
+            ImGui::Text("StencilFunc:");
+            for (int i = 0; i < 8; ++i) {
+                ImGui::RadioButton(funcs[i], &g_stencilFunc, i);
+                if (i < 7) ImGui::SameLine();
+            }
+            // #2 (10) 스텐실 연산 선택
+            const char* ops[] = { "KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR" };
+            ImGui::Text("\nStencilOp:");
+            for (int i = 0; i < 8; ++i) {
+                ImGui::RadioButton(ops[i], &g_stencilOp, i);
+                if (i < 7) ImGui::SameLine();
+            }
+            // #2 (10) 스텐실 참조값 선택
+            ImGui::Text("\nStencilRef:");
+            ImGui::SliderInt("##stencilref", &g_stencilRef, 0, 255);
             ImGui::End();
 
             ImGui::Render();
