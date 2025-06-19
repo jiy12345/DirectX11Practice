@@ -234,8 +234,6 @@ void Render() {
     g_pImmediateContext->Draw(3, 3); // 두 번째 삼각형만
 
     if (pDSState) pDSState->Release();
-
-    g_pSwapChain->Present(1, 0);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
@@ -293,6 +291,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             ImGui::Render();
             Render();
             ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+            g_pSwapChain->Present(1, 0);
         }
     }
 
