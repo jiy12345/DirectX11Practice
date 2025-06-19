@@ -14,6 +14,14 @@ IDXGISwapChain*         g_pSwapChain = nullptr;
 ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
 ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
 
+// #2 (3) 정점 구조체 및 버퍼 관련 전역 변수 추가
+struct Vertex {
+    float position[3];
+    float color[4];
+};
+ID3D11Buffer* g_pVertexBuffer = nullptr;
+ID3D11InputLayout* g_pInputLayout = nullptr;
+
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 1;
@@ -83,6 +91,34 @@ bool InitD3D11(HWND hWnd) {
     vp.TopLeftY = 0;
     g_pImmediateContext->RSSetViewports(1, &vp);
 
+    // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게)
+    Vertex vertices[] = {
+        // 첫 번째 삼각형 (z=0.5, 빨강)
+        { { -0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.0f,  0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        // 두 번째 삼각형 (z=0.3, 초록)
+        { { -0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+        { {  0.0f, -0.8f, 0.3f }, { 0, 1, 0, 1 } },
+        { {  0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+    };
+    D3D11_BUFFER_DESC bd = {};
+    bd.Usage = D3D11_USAGE_DEFAULT;
+    bd.ByteWidth = sizeof(vertices);
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bd.CPUAccessFlags = 0;
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = vertices;
+    hr = g_pd3dDevice->CreateBuffer(&bd, &initData, &g_pVertexBuffer);
+    if (FAILED(hr)) return false;
+
+    // #2 (3) 입력 레이아웃 정의
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    // 셰이더 바이트코드 필요, 이후 단계에서 생성
+
     return true;
 }
 
@@ -93,6 +129,8 @@ void CleanupD3D11() {
     if (g_pSwapChain) g_pSwapChain->Release();
     if (g_pImmediateContext) g_pImmediateContext->Release();
     if (g_pd3dDevice) g_pd3dDevice->Release();
+    if (g_pVertexBuffer) g_pVertexBuffer->Release();
+    if (g_pInputLayout) g_pInputLayout->Release();
 }
 
 void Render() {
