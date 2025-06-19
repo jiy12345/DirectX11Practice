@@ -293,37 +293,37 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             // #2 (10) 스텐실 참조값 선택
             ImGui::Text("\nStencilRef:");
             ImGui::SliderInt("##stencilref", &g_stencilRef, 0, 255);
-            // 스텐실 효과 프리셋 버튼
+            // Stencil effect preset buttons
             ImGui::Separator();
             ImGui::Text("Stencil Presets:");
-            if (ImGui::Button("마스크 영역만 보이기 (EQUAL, REPLACE, ref=1)")) {
+            if (ImGui::Button("Show only inside mask (EQUAL, REPLACE, ref=1)")) {
                 g_stencilFunc = 2; // D3D11_COMPARISON_EQUAL
                 g_stencilOp = 2;   // D3D11_STENCIL_OP_REPLACE
                 g_stencilRef = 1;
             }
             ImGui::SameLine();
-            if (ImGui::Button("마스크 바깥만 보이기 (NOT_EQUAL, KEEP, ref=1)")) {
+            if (ImGui::Button("Show only outside mask (NOT_EQUAL, KEEP, ref=1)")) {
                 g_stencilFunc = 6; // D3D11_COMPARISON_NOT_EQUAL
                 g_stencilOp = 0;   // D3D11_STENCIL_OP_KEEP
                 g_stencilRef = 1;
             }
             ImGui::End();
 
-            // 현재 스텐실 옵션/효과 설명 표시
+            // Show current stencil state/effect description (English)
             const char* func_names[] = { "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS" };
             const char* op_names[] = { "KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR" };
             ImGui::SetNextWindowBgAlpha(0.7f);
             ImGui::Begin("Stencil State Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
-            ImGui::Text("[현재 스텐실 옵션]");
-            ImGui::Text("비교: %s", func_names[g_stencilFunc]);
-            ImGui::Text("연산: %s", op_names[g_stencilOp]);
-            ImGui::Text("참조값: %d", g_stencilRef);
+            ImGui::Text("[Current Stencil State]");
+            ImGui::Text("Func: %s", func_names[g_stencilFunc]);
+            ImGui::Text("Op: %s", op_names[g_stencilOp]);
+            ImGui::Text("Ref: %d", g_stencilRef);
             if (g_stencilFunc == 2 && g_stencilOp == 2 && g_stencilRef == 1)
-                ImGui::TextColored(ImVec4(1,1,0,1), "→ 마스크 영역(빨강 삼각형) 안에서만 초록 삼각형이 보입니다.");
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Green triangle is visible only inside the red mask triangle.");
             else if (g_stencilFunc == 6 && g_stencilOp == 0 && g_stencilRef == 1)
-                ImGui::TextColored(ImVec4(1,1,0,1), "→ 마스크 영역 바깥에서만 초록 삼각형이 보입니다.");
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Green triangle is visible only outside the red mask triangle.");
             else
-                ImGui::TextColored(ImVec4(1,1,0,1), "→ 다양한 스텐실 조합을 실험해보세요!");
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Try various stencil combinations!");
             ImGui::End();
 
             ImGui::Render();
