@@ -290,6 +290,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
             ImGui::Render();
             Render();
+            // ImGui 렌더 전 D3D11 상태 리셋
+            g_pImmediateContext->OMSetDepthStencilState(nullptr, 0);
             ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
             g_pSwapChain->Present(1, 0);
         }
