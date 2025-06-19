@@ -98,6 +98,7 @@ void CleanupD3D11() {
 void Render() {
     float clearColor[4] = { 0.2f, 0.4f, 0.6f, 1.0f };
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
+    g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     g_pSwapChain->Present(1, 0);
 }
 
