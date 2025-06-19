@@ -251,8 +251,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
-    // 멀티 뷰포트 활성화
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     ImGui_ImplWin32_Init(g_hWnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pImmediateContext);
 
@@ -293,11 +291,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             ImGui::Render();
             Render();
             ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-            // 멀티 뷰포트 지원: 플랫폼 윈도우 업데이트/렌더
-            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-                ImGui::UpdatePlatformWindows();
-                ImGui::GetPlatformIO().RenderPlatformWindowsDefault();
-            }
             g_pSwapChain->Present(1, 0);
         }
     }
