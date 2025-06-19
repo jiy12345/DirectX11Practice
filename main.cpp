@@ -110,10 +110,6 @@ bool InitD3D11(HWND hWnd) {
     vp.TopLeftY = 0;
     g_pImmediateContext->RSSetViewports(1, &vp);
 
-    // ImGui DisplaySize 동기화
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)width, (float)height);
-
     // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게)
     Vertex vertices[] = {
         // 첫 번째 삼각형 (z=0.5, 빨강)
@@ -336,9 +332,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             vp.TopLeftX = 0;
             vp.TopLeftY = 0;
             if (g_pImmediateContext) g_pImmediateContext->RSSetViewports(1, &vp);
-            // ImGui DisplaySize 동기화
-            ImGuiIO& io = ImGui::GetIO();
-            io.DisplaySize = ImVec2((float)width, (float)height);
         }
         break;
     case WM_DESTROY:
