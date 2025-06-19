@@ -251,6 +251,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
+    // DPI 스케일 적용
+    float dpi_scale = 1.0f;
+    HDC screen = GetDC(0);
+    dpi_scale = GetDeviceCaps(screen, LOGPIXELSX) / 96.0f;
+    ReleaseDC(0, screen);
+    io.DisplayFramebufferScale = ImVec2(dpi_scale, dpi_scale);
     ImGui_ImplWin32_Init(g_hWnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pImmediateContext);
 
