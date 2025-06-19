@@ -307,6 +307,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             }
             ImGui::End();
 
+            // 현재 스텐실 옵션/효과 설명 표시
+            const char* func_names[] = { "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS" };
+            const char* op_names[] = { "KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR" };
+            ImGui::SetNextWindowBgAlpha(0.7f);
+            ImGui::Begin("Stencil State Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+            ImGui::Text("[현재 스텐실 옵션]");
+            ImGui::Text("비교: %s", func_names[g_stencilFunc]);
+            ImGui::Text("연산: %s", op_names[g_stencilOp]);
+            ImGui::Text("참조값: %d", g_stencilRef);
+            if (g_stencilFunc == 2 && g_stencilOp == 2 && g_stencilRef == 1)
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ 마스크 영역(빨강 삼각형) 안에서만 초록 삼각형이 보입니다.");
+            else if (g_stencilFunc == 6 && g_stencilOp == 0 && g_stencilRef == 1)
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ 마스크 영역 바깥에서만 초록 삼각형이 보입니다.");
+            else
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ 다양한 스텐실 조합을 실험해보세요!");
+            ImGui::End();
+
             ImGui::Render();
             Render();
             // ImGui 렌더 전 D3D11 상태 리셋
