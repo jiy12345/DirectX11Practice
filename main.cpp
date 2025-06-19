@@ -256,8 +256,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
-    // 한글 폰트 등록
-    io.Fonts->AddFontFromFileTTF("extern/imgui/misc/fonts/NotoSansKR-Regular.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesKorean());
     ImGui_ImplWin32_Init(g_hWnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pImmediateContext);
 
