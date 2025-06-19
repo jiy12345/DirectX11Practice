@@ -178,6 +178,17 @@ void Render() {
     float clearColor[4] = { 0.2f, 0.4f, 0.6f, 1.0f };
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
     g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    // #2 (5) 파이프라인 셋업 및 삼각형 렌더링
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    g_pImmediateContext->IASetInputLayout(g_pInputLayout);
+    g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
+    g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
+    g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
+    g_pImmediateContext->Draw(6, 0); // 2개 삼각형(6개 정점)
+
     g_pSwapChain->Present(1, 0);
 }
 
