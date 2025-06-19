@@ -291,6 +291,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             // #2 (10) 스텐실 참조값 선택
             ImGui::Text("\nStencilRef:");
             ImGui::SliderInt("##stencilref", &g_stencilRef, 0, 255);
+            // 스텐실 효과 프리셋 버튼
+            ImGui::Separator();
+            ImGui::Text("Stencil Presets:");
+            if (ImGui::Button("마스크 영역만 보이기 (EQUAL, REPLACE, ref=1)")) {
+                g_stencilFunc = 2; // D3D11_COMPARISON_EQUAL
+                g_stencilOp = 2;   // D3D11_STENCIL_OP_REPLACE
+                g_stencilRef = 1;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("마스크 바깥만 보이기 (NOT_EQUAL, KEEP, ref=1)")) {
+                g_stencilFunc = 6; // D3D11_COMPARISON_NOT_EQUAL
+                g_stencilOp = 0;   // D3D11_STENCIL_OP_KEEP
+                g_stencilRef = 1;
+            }
             ImGui::End();
 
             ImGui::Render();
