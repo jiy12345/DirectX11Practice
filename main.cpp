@@ -1,6 +1,9 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -24,6 +27,9 @@ ID3D11Buffer* g_pVertexBuffer = nullptr;
 ID3D11InputLayout* g_pInputLayout = nullptr;
 ID3D11VertexShader* g_pVertexShader = nullptr;
 ID3D11PixelShader* g_pPixelShader = nullptr;
+
+// ImGui 윈도우 프로시저 전달용
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
@@ -203,6 +209,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         return 0;
     }
 
+    // #2 (9) ImGui 초기화
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplWin32_Init(g_hWnd);
+    ImGui_ImplDX11_Init(g_pd3dDevice, g_pImmediateContext);
+
     ShowWindow(g_hWnd, nCmdShow);
     UpdateWindow(g_hWnd);
 
@@ -212,9 +226,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
+            // #2 (9) ImGui 프레임 시작
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+
+            // #2 (9) 기본 ImGui 윈도우
+            ImGui::Begin("Stencil Example");
+            ImGui::Text("ImGui + DirectX11 + Stencil Example");
+            ImGui::End();
+
+            ImGui::Render();
             Render();
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         }
     }
+
+    // #2 (9) ImGui 종료
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
     CleanupD3D11();
     UnregisterClass(wc.lpszClassName, wc.hInstance);
@@ -222,6 +253,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    // #2 (9) ImGui 윈도우 메시지 전달
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
     switch (msg) {
     case WM_DESTROY:
         PostQuitMessage(0);
