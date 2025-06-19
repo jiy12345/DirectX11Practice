@@ -318,6 +318,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
         return true;
     switch (msg) {
+    case WM_SIZE:
+        if (g_pd3dDevice != nullptr && wParam != SIZE_MINIMIZED) {
+            RECT rect;
+            GetClientRect(hWnd, &rect);
+            int width = rect.right - rect.left;
+            int height = rect.bottom - rect.top;
+            // D3D11 뷰포트 동기화
+            D3D11_VIEWPORT vp = {};
+            vp.Width = (FLOAT)width;
+            vp.Height = (FLOAT)height;
+            vp.MinDepth = 0.0f;
+            vp.MaxDepth = 1.0f;
+            vp.TopLeftX = 0;
+            vp.TopLeftY = 0;
+            if (g_pImmediateContext) g_pImmediateContext->RSSetViewports(1, &vp);
+            // ImGui DisplaySize 동기화
+            ImGuiIO& io = ImGui::GetIO();
+            io.DisplaySize = ImVec2((float)width, (float)height);
+        }
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
