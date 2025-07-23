@@ -1,6 +1,9 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -25,11 +28,24 @@ ID3D11InputLayout* g_pInputLayout = nullptr;
 ID3D11VertexShader* g_pVertexShader = nullptr;
 ID3D11PixelShader* g_pPixelShader = nullptr;
 
+// ImGui 윈도우 프로시저 전달용
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
+
+// 스텐실 상태 선택용 전역 변수
+static int g_stencilFunc = 2; // 기본값: D3D11_COMPARISON_ALWAYS
+static int g_stencilOp = 0;   // 기본값: D3D11_STENCIL_OP_KEEP
+static int g_stencilRef = 1;  // 기본값: 1
+
 bool InitD3D11(HWND hWnd) {
+    RECT rect;
+    GetClientRect(hWnd, &rect);
+    int width = rect.right - rect.left;
+    int height = rect.bottom - rect.top;
+
     DXGI_SWAP_CHAIN_DESC sd = {};
     sd.BufferCount = 1;
-    sd.BufferDesc.Width = 800;
-    sd.BufferDesc.Height = 600;
+    sd.BufferDesc.Width = width;
+    sd.BufferDesc.Height = height;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     sd.BufferDesc.RefreshRate.Numerator = 60;
     sd.BufferDesc.RefreshRate.Denominator = 1;
@@ -63,8 +79,8 @@ bool InitD3D11(HWND hWnd) {
 
     // #2 (1) 깊이-스텐실 버퍼 생성
     D3D11_TEXTURE2D_DESC depthDesc = {};
-    depthDesc.Width = 800;
-    depthDesc.Height = 600;
+    depthDesc.Width = width;
+    depthDesc.Height = height;
     depthDesc.MipLevels = 1;
     depthDesc.ArraySize = 1;
     depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
@@ -86,24 +102,24 @@ bool InitD3D11(HWND hWnd) {
     g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
     D3D11_VIEWPORT vp = {};
-    vp.Width = (FLOAT)800;
-    vp.Height = (FLOAT)600;
+    vp.Width = (FLOAT)width;
+    vp.Height = (FLOAT)height;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
     g_pImmediateContext->RSSetViewports(1, &vp);
 
-    // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게)
+    // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게, 겹침 명확화)
     Vertex vertices[] = {
-        // 첫 번째 삼각형 (z=0.5, 빨강)
-        { { -0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
-        { {  0.0f,  0.5f, 0.5f }, { 1, 0, 0, 1 } },
-        { {  0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
-        // 두 번째 삼각형 (z=0.3, 초록)
-        { { -0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+        // 마스크 삼각형 (빨강, 화면 중앙 위쪽)
+        { { -0.4f,  0.2f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.0f,  0.8f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.4f,  0.2f, 0.5f }, { 1, 0, 0, 1 } },
+        // 테스트 삼각형 (초록, 화면 중앙 아래쪽, 일부 겹침)
+        { { -0.4f, -0.2f, 0.3f }, { 0, 1, 0, 1 } },
         { {  0.0f, -0.8f, 0.3f }, { 0, 1, 0, 1 } },
-        { {  0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+        { {  0.4f, -0.2f, 0.3f }, { 0, 1, 0, 1 } },
     };
     D3D11_BUFFER_DESC bd = {};
     bd.Usage = D3D11_USAGE_DEFAULT;
@@ -180,7 +196,22 @@ void Render() {
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
     g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
-    // #2 (5) 파이프라인 셋업 및 삼각형 렌더링
+    // ImGui 선택값에 따라 스텐실 상태 동적 생성/적용
+    D3D11_DEPTH_STENCIL_DESC dsDesc = {};
+    dsDesc.DepthEnable = TRUE;
+    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    dsDesc.StencilEnable = TRUE;
+    dsDesc.StencilReadMask = 0xFF;
+    dsDesc.StencilWriteMask = 0xFF;
+    dsDesc.FrontFace.StencilFunc = (D3D11_COMPARISON_FUNC)g_stencilFunc;
+    dsDesc.FrontFace.StencilPassOp = (D3D11_STENCIL_OP)g_stencilOp;
+    dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    dsDesc.BackFace = dsDesc.FrontFace;
+    ID3D11DepthStencilState* pDSState = nullptr;
+    g_pd3dDevice->CreateDepthStencilState(&dsDesc, &pDSState);
+
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
     g_pImmediateContext->IASetInputLayout(g_pInputLayout);
@@ -188,9 +219,26 @@ void Render() {
     g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
     g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
-    g_pImmediateContext->Draw(6, 0); // 2개 삼각형(6개 정점)
 
-    g_pSwapChain->Present(1, 0);
+    // 첫 번째 삼각형: 스텐실 마스크로만 그림 (스텐실 값 1로 설정)
+    D3D11_DEPTH_STENCIL_DESC maskDesc = dsDesc;
+    maskDesc.StencilEnable = TRUE;
+    maskDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    maskDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+    maskDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    maskDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    maskDesc.BackFace = maskDesc.FrontFace;
+    ID3D11DepthStencilState* pMaskState = nullptr;
+    g_pd3dDevice->CreateDepthStencilState(&maskDesc, &pMaskState);
+    g_pImmediateContext->OMSetDepthStencilState(pMaskState, 1); // 스텐실 값 1로 설정
+    g_pImmediateContext->Draw(3, 0); // 첫 번째 삼각형만
+    if (pMaskState) pMaskState->Release();
+
+    // 두 번째 삼각형: 스텐실 조건에 따라 그림
+    g_pImmediateContext->OMSetDepthStencilState(pDSState, g_stencilRef);
+    g_pImmediateContext->Draw(3, 3); // 두 번째 삼각형만
+
+    if (pDSState) pDSState->Release();
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
@@ -203,6 +251,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         return 0;
     }
 
+    // #2 (9) ImGui 초기화
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplWin32_Init(g_hWnd);
+    ImGui_ImplDX11_Init(g_pd3dDevice, g_pImmediateContext);
+
     ShowWindow(g_hWnd, nCmdShow);
     UpdateWindow(g_hWnd);
 
@@ -212,9 +268,75 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         } else {
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+
+            ImGui::Begin("Stencil Example");
+            ImGui::Text("ImGui + DirectX11 + Stencil Example");
+            // #2 (10) 스텐실 비교 함수 선택
+            const char* funcs[] = { "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS" };
+            ImGui::Text("StencilFunc:");
+            for (int i = 0; i < 8; ++i) {
+                ImGui::RadioButton(funcs[i], &g_stencilFunc, i);
+                if (i < 7) ImGui::SameLine();
+            }
+            // #2 (10) 스텐실 연산 선택
+            const char* ops[] = { "KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR" };
+            ImGui::Text("\nStencilOp:");
+            for (int i = 0; i < 8; ++i) {
+                ImGui::RadioButton(ops[i], &g_stencilOp, i);
+                if (i < 7) ImGui::SameLine();
+            }
+            // #2 (10) 스텐실 참조값 선택
+            ImGui::Text("\nStencilRef:");
+            ImGui::SliderInt("##stencilref", &g_stencilRef, 0, 255);
+            // Stencil effect preset buttons
+            ImGui::Separator();
+            ImGui::Text("Stencil Presets:");
+            if (ImGui::Button("Show only inside mask (EQUAL, REPLACE, ref=1)")) {
+                g_stencilFunc = 2; // D3D11_COMPARISON_EQUAL
+                g_stencilOp = 2;   // D3D11_STENCIL_OP_REPLACE
+                g_stencilRef = 1;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Show only outside mask (NOT_EQUAL, KEEP, ref=1)")) {
+                g_stencilFunc = 6; // D3D11_COMPARISON_NOT_EQUAL
+                g_stencilOp = 0;   // D3D11_STENCIL_OP_KEEP
+                g_stencilRef = 1;
+            }
+            ImGui::End();
+
+            // Show current stencil state/effect description (English)
+            const char* func_names[] = { "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS" };
+            const char* op_names[] = { "KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR" };
+            ImGui::SetNextWindowBgAlpha(0.7f);
+            ImGui::Begin("Stencil State Info", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar);
+            ImGui::Text("[Current Stencil State]");
+            ImGui::Text("Func: %s", func_names[g_stencilFunc]);
+            ImGui::Text("Op: %s", op_names[g_stencilOp]);
+            ImGui::Text("Ref: %d", g_stencilRef);
+            if (g_stencilFunc == 2 && g_stencilOp == 2 && g_stencilRef == 1)
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Green triangle is visible only inside the red mask triangle.");
+            else if (g_stencilFunc == 6 && g_stencilOp == 0 && g_stencilRef == 1)
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Green triangle is visible only outside the red mask triangle.");
+            else
+                ImGui::TextColored(ImVec4(1,1,0,1), "→ Try various stencil combinations!");
+            ImGui::End();
+
+            ImGui::Render();
             Render();
+            // ImGui 렌더 전 D3D11 상태 리셋
+            g_pImmediateContext->OMSetDepthStencilState(nullptr, 0);
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+            g_pSwapChain->Present(1, 0);
         }
     }
+
+    // #2 (9) ImGui 종료
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
     CleanupD3D11();
     UnregisterClass(wc.lpszClassName, wc.hInstance);
@@ -222,7 +344,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    // #2 (9) ImGui 윈도우 메시지 전달
+    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
+        return true;
     switch (msg) {
+    case WM_SIZE:
+        if (g_pd3dDevice != nullptr && wParam != SIZE_MINIMIZED) {
+            RECT rect;
+            GetClientRect(hWnd, &rect);
+            int width = rect.right - rect.left;
+            int height = rect.bottom - rect.top;
+            // D3D11 뷰포트 동기화
+            D3D11_VIEWPORT vp = {};
+            vp.Width = (FLOAT)width;
+            vp.Height = (FLOAT)height;
+            vp.MinDepth = 0.0f;
+            vp.MaxDepth = 1.0f;
+            vp.TopLeftX = 0;
+            vp.TopLeftY = 0;
+            if (g_pImmediateContext) g_pImmediateContext->RSSetViewports(1, &vp);
+        }
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
