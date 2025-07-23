@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <d3d11.h>
+#include <d3dcompiler.h>
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -12,6 +13,17 @@ ID3D11Device*           g_pd3dDevice = nullptr;
 ID3D11DeviceContext*    g_pImmediateContext = nullptr;
 IDXGISwapChain*         g_pSwapChain = nullptr;
 ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
+ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
+
+// #2 (3) 정점 구조체 및 버퍼 관련 전역 변수 추가
+struct Vertex {
+    float position[3];
+    float color[4];
+};
+ID3D11Buffer* g_pVertexBuffer = nullptr;
+ID3D11InputLayout* g_pInputLayout = nullptr;
+ID3D11VertexShader* g_pVertexShader = nullptr;
+ID3D11PixelShader* g_pPixelShader = nullptr;
 
 bool InitD3D11(HWND hWnd) {
     DXGI_SWAP_CHAIN_DESC sd = {};
@@ -49,7 +61,29 @@ bool InitD3D11(HWND hWnd) {
     pBackBuffer->Release();
     if (FAILED(hr)) return false;
 
-    g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, nullptr);
+    // #2 (1) 깊이-스텐실 버퍼 생성
+    D3D11_TEXTURE2D_DESC depthDesc = {};
+    depthDesc.Width = 800;
+    depthDesc.Height = 600;
+    depthDesc.MipLevels = 1;
+    depthDesc.ArraySize = 1;
+    depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    depthDesc.SampleDesc.Count = 1;
+    depthDesc.SampleDesc.Quality = 0;
+    depthDesc.Usage = D3D11_USAGE_DEFAULT;
+    depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthDesc.CPUAccessFlags = 0;
+    depthDesc.MiscFlags = 0;
+
+    ID3D11Texture2D* pDepthStencil = nullptr;
+    hr = g_pd3dDevice->CreateTexture2D(&depthDesc, nullptr, &pDepthStencil);
+    if (FAILED(hr)) return false;
+
+    hr = g_pd3dDevice->CreateDepthStencilView(pDepthStencil, nullptr, &g_pDepthStencilView);
+    pDepthStencil->Release();
+    if (FAILED(hr)) return false;
+
+    g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
 
     D3D11_VIEWPORT vp = {};
     vp.Width = (FLOAT)800;
@@ -60,20 +94,102 @@ bool InitD3D11(HWND hWnd) {
     vp.TopLeftY = 0;
     g_pImmediateContext->RSSetViewports(1, &vp);
 
+    // #2 (3) 삼각형 2개 정점 데이터 (z값 다르게)
+    Vertex vertices[] = {
+        // 첫 번째 삼각형 (z=0.5, 빨강)
+        { { -0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.0f,  0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        { {  0.5f, -0.5f, 0.5f }, { 1, 0, 0, 1 } },
+        // 두 번째 삼각형 (z=0.3, 초록)
+        { { -0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+        { {  0.0f, -0.8f, 0.3f }, { 0, 1, 0, 1 } },
+        { {  0.5f,  0.0f, 0.3f }, { 0, 1, 0, 1 } },
+    };
+    D3D11_BUFFER_DESC bd = {};
+    bd.Usage = D3D11_USAGE_DEFAULT;
+    bd.ByteWidth = sizeof(vertices);
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bd.CPUAccessFlags = 0;
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = vertices;
+    hr = g_pd3dDevice->CreateBuffer(&bd, &initData, &g_pVertexBuffer);
+    if (FAILED(hr)) return false;
+
+    // #2 (4) HLSL 셰이더 소스 코드 (간단한 패스스루)
+    const char* vsCode = R"(
+    struct VS_IN {
+        float3 pos : POSITION;
+        float4 col : COLOR;
+    };
+    struct PS_IN {
+        float4 pos : SV_POSITION;
+        float4 col : COLOR;
+    };
+    PS_IN main(VS_IN input) {
+        PS_IN output;
+        output.pos = float4(input.pos, 1.0f);
+        output.col = input.col;
+        return output;
+    })";
+    const char* psCode = R"(
+    struct PS_IN {
+        float4 pos : SV_POSITION;
+        float4 col : COLOR;
+    };
+    float4 main(PS_IN input) : SV_TARGET {
+        return input.col;
+    })";
+    ID3DBlob* vsBlob = nullptr;
+    ID3DBlob* psBlob = nullptr;
+    ID3DBlob* errorBlob = nullptr;
+    hr = D3DCompile(vsCode, strlen(vsCode), nullptr, nullptr, nullptr, "main", "vs_4_0", 0, 0, &vsBlob, &errorBlob);
+    if (FAILED(hr)) return false;
+    hr = D3DCompile(psCode, strlen(psCode), nullptr, nullptr, nullptr, "main", "ps_4_0", 0, 0, &psBlob, &errorBlob);
+    if (FAILED(hr)) { if (vsBlob) vsBlob->Release(); return false; }
+    hr = g_pd3dDevice->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &g_pVertexShader);
+    if (FAILED(hr)) { vsBlob->Release(); psBlob->Release(); return false; }
+    hr = g_pd3dDevice->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &g_pPixelShader);
+    if (FAILED(hr)) { vsBlob->Release(); psBlob->Release(); return false; }
+    // #2 (4) 입력 레이아웃 생성
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
+    hr = g_pd3dDevice->CreateInputLayout(layout, 2, vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), &g_pInputLayout);
+    vsBlob->Release(); psBlob->Release();
+    if (FAILED(hr)) return false;
+
     return true;
 }
 
 void CleanupD3D11() {
     if (g_pImmediateContext) g_pImmediateContext->ClearState();
+    if (g_pDepthStencilView) g_pDepthStencilView->Release();
     if (g_pRenderTargetView) g_pRenderTargetView->Release();
     if (g_pSwapChain) g_pSwapChain->Release();
     if (g_pImmediateContext) g_pImmediateContext->Release();
     if (g_pd3dDevice) g_pd3dDevice->Release();
+    if (g_pVertexBuffer) g_pVertexBuffer->Release();
+    if (g_pInputLayout) g_pInputLayout->Release();
+    if (g_pVertexShader) g_pVertexShader->Release();
+    if (g_pPixelShader) g_pPixelShader->Release();
 }
 
 void Render() {
     float clearColor[4] = { 0.2f, 0.4f, 0.6f, 1.0f };
     g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, clearColor);
+    g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    // #2 (5) 파이프라인 셋업 및 삼각형 렌더링
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    g_pImmediateContext->IASetInputLayout(g_pInputLayout);
+    g_pImmediateContext->IASetVertexBuffers(0, 1, &g_pVertexBuffer, &stride, &offset);
+    g_pImmediateContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    g_pImmediateContext->VSSetShader(g_pVertexShader, nullptr, 0);
+    g_pImmediateContext->PSSetShader(g_pPixelShader, nullptr, 0);
+    g_pImmediateContext->Draw(6, 0); // 2개 삼각형(6개 정점)
+
     g_pSwapChain->Present(1, 0);
 }
 
